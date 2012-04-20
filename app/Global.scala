@@ -54,7 +54,7 @@ object Global extends GlobalSettings {
 	import CSRF._
 
 	val f = Form(single(TOKEN_NAME -> nonEmptyText))
-	val INVALID_TOKEN  = BadRequest("Invalid CSRF Token")
+	val INVALID_TOKEN  = Action(BadRequest("Invalid CSRF Token"))
 	var UNSAFE_METHOD = "PUT|POST|DELETE".r
 
 	override def onRouteRequest(request: RequestHeader): Option[Handler] = {
@@ -68,23 +68,13 @@ object Global extends GlobalSettings {
 		}
 
 		request.method match {
-			case UNSAFE_METHOD() => Some(Action { req:  Request[AnyContent] =>
-				f.bindFromRequest()(req).fold(
-					_ => INVALID_TOKEN,
-					{ paramToken =>
-						req.session.get(TOKEN_NAME).map { sessionToken => 
-							if(checkTokens(paramToken, sessionToken)){
-								delegate.map{
-									case a: Action[_] => a(req)
-									case _ => h
-								}
-							}
-							else
-								INVALID_TOKEN
-						} getOrElse INVALID_TOKEN
-					}
-				)
-			})
+			case UNSAFE_METHOD() => {
+				(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
+					token <- maybeTokens.headOption;
+					sessionToken <- request.session.get(TOKEN_NAME);
+					d <- delegate
+				} yield if(checkTokens(token, sessionToken)) d else INVALID_TOKEN) orElse Some(INVALID_TOKEN)
+			}
 			case _ => delegate
 		}
 	}
