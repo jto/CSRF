@@ -24,6 +24,8 @@ object CSRF {
 case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
 	import CSRF._
 
+	lazy val token = CSRF.generate
+
 	def addSessionToken(req: RequestHeader, res: Result) = res match {
 		case r: PlainResult => {
 			if(req.session.get(TOKEN_NAME).isDefined){
@@ -33,7 +35,7 @@ case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
 				val session = Cookies(r.header.headers.get("Set-Cookie"))
 					.get(Session.COOKIE_NAME).map(_.value).map(Session.decode)
 					.getOrElse(Map.empty)
-				val newSession = if(session.contains(TOKEN_NAME)) session else (session + (TOKEN_NAME -> generate))
+				val newSession = if(session.contains(TOKEN_NAME)) session else (session + (TOKEN_NAME -> token))
 				r.withSession(Session.deserialize(newSession))
 			}
 		}
@@ -41,7 +43,10 @@ case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
 	}
 
 	def apply(request: Request[A]): Result = {
-		action(request) match {
+		val r = request.session.get(TOKEN_NAME).map(_ => request).getOrElse(new WrappedRequest(request){
+			override lazy val session = request.session + (TOKEN_NAME -> token)
+		})
+		action(r) match {
 			case ar: AsyncResult => AsyncResult(ar.result.map(addSessionToken(request, _)))
 			case result => addSessionToken(request, result)
 		}
