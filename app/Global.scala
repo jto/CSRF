@@ -60,7 +60,7 @@ object Global extends GlobalSettings {
 	override def onRouteRequest(request: RequestHeader): Option[Handler] = {
 		var parent = super.onRouteRequest(request)
 
-		def delegate = parent.map { h =>
+		def delegate: Option[Handler] = parent.map { h =>
 			h match {
 				case a: Action[_] => ResponseWrapper(a)
 				case _ => h
@@ -69,11 +69,12 @@ object Global extends GlobalSettings {
 
 		request.method match {
 			case UNSAFE_METHOD() => {
-				(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
-					token <- maybeTokens.headOption;
-					sessionToken <- request.session.get(TOKEN_NAME);
-					d <- delegate
-				} yield if(checkTokens(token, sessionToken)) d else INVALID_TOKEN) orElse Some(INVALID_TOKEN)
+				delegate.flatMap{ d =>
+					(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
+						token <- maybeTokens.headOption;
+						sessionToken <- request.session.get(TOKEN_NAME)
+					} yield if(checkTokens(token, sessionToken)) d else INVALID_TOKEN) orElse Some(INVALID_TOKEN)
+				}
 			}
 			case _ => delegate
 		}
