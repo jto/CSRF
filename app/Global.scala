@@ -7,15 +7,17 @@ import play.api.data._
 import validation._
 import Forms._
 import java.security.SecureRandom
+import org.apache.commons.codec.binary._
 
 object CSRF {
 	val TOKEN_NAME = "csrfToken"
-	val random = new SecureRandom()
+	val encoder = new Hex
+	val random = new SecureRandom
 
 	def generate = {
 		val bytes = new Array[Byte](64)
 		random.nextBytes(bytes)
-		new String(bytes)
+		new String(encoder.encode(bytes), "UTF8")
 	}
 
 	def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
