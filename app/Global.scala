@@ -14,6 +14,9 @@ object CSRF {
 	val encoder = new Hex
 	val random = new SecureRandom
 
+	val INVALID_TOKEN  = Action(BadRequest("Invalid CSRF Token"))
+	var UNSAFE_METHOD = "PUT|POST|DELETE".r
+
 	def generate = {
 		val bytes = new Array[Byte](64)
 		random.nextBytes(bytes)
@@ -21,6 +24,27 @@ object CSRF {
 	}
 
 	def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
+	
+	def wrap(request: RequestHeader, parent: Option[Handler]): Option[Handler] = {
+		def delegate: Option[Handler] = parent.map { h =>
+			h match {
+				case a: Action[_] => ResponseWrapper(a)
+				case _ => h
+			}
+		}
+
+		request.method match {
+			case UNSAFE_METHOD() => {
+				delegate.flatMap{ d =>
+					(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
+						token <- maybeTokens.headOption;
+						sessionToken <- request.session.get(TOKEN_NAME)
+					} yield if(checkTokens(token, sessionToken)) d else INVALID_TOKEN) orElse Some(INVALID_TOKEN)
+				}
+			}
+			case _ => delegate
+		}
+	}
 }
 
 case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
@@ -59,31 +83,7 @@ case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
 
 object Global extends GlobalSettings {
 	import CSRF._
-
-	val f = Form(single(TOKEN_NAME -> nonEmptyText))
-	val INVALID_TOKEN  = Action(BadRequest("Invalid CSRF Token"))
-	var UNSAFE_METHOD = "PUT|POST|DELETE".r
-
 	override def onRouteRequest(request: RequestHeader): Option[Handler] = {
-		var parent = super.onRouteRequest(request)
-
-		def delegate: Option[Handler] = parent.map { h =>
-			h match {
-				case a: Action[_] => ResponseWrapper(a)
-				case _ => h
-			}
-		}
-
-		request.method match {
-			case UNSAFE_METHOD() => {
-				delegate.flatMap{ d =>
-					(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
-						token <- maybeTokens.headOption;
-						sessionToken <- request.session.get(TOKEN_NAME)
-					} yield if(checkTokens(token, sessionToken)) d else INVALID_TOKEN) orElse Some(INVALID_TOKEN)
-				}
-			}
-			case _ => delegate
-		}
+		CSRF.wrap(request, super.onRouteRequest(request))
 	}
 }
