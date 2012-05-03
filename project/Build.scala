@@ -9,7 +9,7 @@ object ApplicationBuild extends Build {
 
     val appDependencies = Seq(
       "commons-codec" % "commons-codec" % "1.6",
-      "filters" %% "filters" % "1.0"
+      "jto" %% "filters" % "1.0"
     )
 
     val main = PlayProject(appName, appVersion, appDependencies, mainLang = SCALA).settings(
