@@ -1,6 +1,6 @@
-package com.github.jto.scala.csrf
+package jto.scala.csrf
 
-import jto.scala.filters._;
+import jto.scala.filters._
 
 import play.api.mvc._
 import Results._
