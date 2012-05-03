@@ -1,4 +1,6 @@
-package csrf
+package com.github.jto.scala.csrf
+
+import com.github.jto.scala._
 
 import play.api.mvc._
 import Results._
@@ -28,7 +30,7 @@ object CSRF {
 	def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
 
 	// -
-	def checkRequest(request: RequestHeader): Either[PlainResult, RequestHeader] = {
+	def checkRequest[A](request: Request[A]): Either[PlainResult, Request[A]] = {
 		request.method match {
 			case UNSAFE_METHOD() => {
 				(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
@@ -68,7 +70,6 @@ object CSRF {
 		.getOrElse(new WrappedRequest(request) {
 			override lazy val session = request.session + (TOKEN_NAME -> token) // TODO
 		})
-	def addToken[A](request: RequestHeader, token: Token): RequestHeader = addToken(EmptyRequest(request), token)
 
 	private[csrf] case class EmptyRequest(r: RequestHeader) extends Request[Unit]{
 		override def uri = r.uri
@@ -79,42 +80,31 @@ object CSRF {
 		override def remoteAddress = r.remoteAddress
 		override def body = ()
 	}
-	
-	/**
-	* Add CSRF protection to a existing Handler
-	*/
-	def wrap(request: RequestHeader, parent: Option[Handler]): Option[Handler] = {
-		parent.map{
-			case a: Action[_] => ResponseWrapper(a)
-			case h => h
-		}
-	}
+
 }
 
-case class ResponseWrapper[A](action: Action[A]) extends Action[A] {
+object CSRFFilter extends Filter {
 	import CSRF._
-	lazy val token = CSRF.generate
-
-	def apply(request: Request[A]) = {
-		val token = generate
-		val requestWithToken = addToken(request, token)
-
-		checkRequest(requestWithToken)
+	override def apply[A](next: Request[A] => Result)(request: Request[A]): Result = {
+		lazy val token = CSRF.generate
+		checkRequest(request)
 			.right.map { r =>
-				action(requestWithToken) match {
+				val requestWithToken = addToken(r, token)
+				next(requestWithToken) match {
 					case ar: AsyncResult => AsyncResult(ar.result.map(addSessionToken(request, _, token)))
 					case result => addSessionToken(request, result, token)
 				}
 			}
 			.fold(identity, identity)
 	}
-
-	lazy val parser = action.parser
 }
 
+/**
+* Default global, use this if CSRF is your only Filter
+*/
 object Global extends GlobalSettings {
 	import CSRF._
 	override def onRouteRequest(request: RequestHeader): Option[Handler] = {
-		CSRF.wrap(request, super.onRouteRequest(request))
+		Filters(super.onRouteRequest(request), CSRFFilter)
 	}
 }
