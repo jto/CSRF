@@ -70,17 +70,6 @@ object CSRF {
 		.getOrElse(new WrappedRequest(request) {
 			override lazy val session = request.session + (TOKEN_NAME -> token) // TODO
 		})
-
-	private[csrf] case class EmptyRequest(r: RequestHeader) extends Request[Unit]{
-		override def uri = r.uri
-		override def path = r.path
-		override def method = r.method
-		override def queryString = r.queryString
-		override def headers = r.headers
-		override def remoteAddress = r.remoteAddress
-		override def body = ()
-	}
-
 }
 
 object CSRFFilter extends Filter {
