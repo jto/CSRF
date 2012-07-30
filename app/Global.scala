@@ -1,4 +1,4 @@
-// Copyright 2012 Julien Tourna
+// Copyright 2012 Julien Tournay
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ object CSRF {
 	def addToken[A](request: Request[A], token: Token): Request[A] = request.session.get(TOKEN_NAME)
 		.map(_ => request)
 		.getOrElse(new WrappedRequest(request) {
-			override lazy val session = request.session + (TOKEN_NAME -> token) // TODO
+			override lazy val session = request.session + (TOKEN_NAME -> token)
 		})
 }
 
@@ -92,6 +92,7 @@ object CSRFFilter extends Filter {
 		lazy val token = CSRF.generate
 		checkRequest(request)
 			.right.map { r =>
+			  import scala.concurrent.ExecutionContext.Implicits.global // I have no idea of why this is required, and what it's doing
 				val requestWithToken = addToken(r, token)
 				next(requestWithToken) match {
 					case ar: AsyncResult => AsyncResult(ar.result.map(addSessionToken(request, _, token)))
