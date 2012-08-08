@@ -27,6 +27,8 @@ object ApplicationBuild extends Build {
 
     val main = PlayProject(appName, appVersion, appDependencies, mainLang = SCALA).settings(
       organization := "jto",
+      licenses := Seq("Apache License v2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+      homepage := Some(url("https://github.com/jto/play-filters")),
       resolvers += Repos.sandbox,
       publishTo := Some(Repos.sandbox),
       credentials += Credentials(Path.userHome / ".sbt" / ".licredentials"),
