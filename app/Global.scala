@@ -44,7 +44,7 @@ object CSRF {
 	def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
 
 	// -
-	def checkRequest[A](request: Request[A]): Either[PlainResult, Request[A]] = {
+	def checkRequest(request: RequestHeader): Either[PlainResult, RequestHeader] = {
 		request.method match {
 			case UNSAFE_METHOD() => {
 				(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
@@ -79,16 +79,16 @@ object CSRF {
 	/**
 	* Add token to the request if necessary
 	*/
-	def addToken[A](request: Request[A], token: Token): Request[A] = request.session.get(TOKEN_NAME)
+	def addToken(request: RequestHeader, token: Token): RequestHeader = request.session.get(TOKEN_NAME)
 		.map(_ => request)
-		.getOrElse(new WrappedRequest(request) {
+		.getOrElse(new WrappedRequest(Request[AnyContent](request, null)) { // XXX: ouuucchhhh
 			override lazy val session = request.session + (TOKEN_NAME -> token)
 		})
 }
 
 object CSRFFilter extends Filter {
 	import CSRF._
-	override def apply[A](next: Request[A] => Result)(request: Request[A]): Result = {
+	override def apply(next: RequestHeader => Result)(request: RequestHeader): Result = {
 		lazy val token = CSRF.generate
 		checkRequest(request)
 			.right.map { r =>
