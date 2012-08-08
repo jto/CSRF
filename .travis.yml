@@ -1,0 +1,8 @@
+language: scala
+scala:
+  - "2.9.1"
+jdk:
+  - oraclejdk7
+notifications:
+  email:
+    - jto+travis@zenexity.com
