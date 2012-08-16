@@ -82,7 +82,29 @@ object CSRF {
 	def addToken(request: RequestHeader, token: Token): RequestHeader = request.session.get(TOKEN_NAME)
 		.map(_ => request)
 		.getOrElse(new WrappedRequest(Request[AnyContent](request, null)) { // XXX: ouuucchhhh
-			override lazy val session = request.session + (TOKEN_NAME -> token)
+
+			// Fix Jim's "first request has no token in session" bug
+			// when play is copying request object, it's not copying lazy vals
+			// session is actually extracted *again* from cookies each time the request is copied
+			// We need to reencode session into cookies, into headers, that's painful
+			override val headers: Headers = new Headers {
+				def getAll(key: String): Seq[String] = {
+					if(key != play.api.http.HeaderNames.COOKIE)
+						request.headers.getAll(key)
+					else
+						cookiesHeader.toSeq
+				}
+				def keys: Set[String] = 
+					request.headers.keys + play.api.http.HeaderNames.COOKIE
+			}
+
+			val newSession = request.session + (TOKEN_NAME -> token)
+			lazy val cookiesHeader = Some(Cookies.merge(
+				headers.get(play.api.http.HeaderNames.COOKIE).getOrElse(""),
+				Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data)))
+		  ))
+		  override lazy val cookies: Cookies = Cookies(cookiesHeader)
+			override lazy val session = newSession
 		})
 }
 
