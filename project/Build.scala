@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.07.30.77b960b"
+    val appVersion      = "2294e23-SNAPSHOT"
 
     object Repos {
       val pattern = Patterns(
@@ -21,12 +21,15 @@ object ApplicationBuild extends Build {
       val local = Resolver.file("file",  new File(Path.userHome.absolutePath + "/Desktop"))(pattern) // debug
     }
 
-    val appDependencies = Seq(
-      "commons-codec" % "commons-codec" % "1.6",
-      "jto" %% "filters" % "2012.07.30.77b960b"
+    val pluginDependencies = Seq(
+      "jto" %% "filters" % "2294e23-SNAPSHOT",
+      "commons-codec" % "commons-codec" % "1.6"
     )
+    
+    lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li")) 
+      
 
-    val main = PlayProject(appName, appVersion, appDependencies, mainLang = SCALA).settings(
+    lazy val plugin = PlayProject(appName, appVersion, pluginDependencies, mainLang = SCALA, path = file("plugin")).settings(
       organization := "jto",
       licenses := Seq("Apache License v2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
       homepage := Some(url("https://github.com/jto/play-filters")),
@@ -34,6 +37,14 @@ object ApplicationBuild extends Build {
       publishTo := Some(Repos.sandbox),
       credentials += Credentials(Path.userHome / ".sbt" / ".licredentials"),
       publishMavenStyle := false
-    )
+    )//.dependsOn(filters)
+    
+    
+    lazy val sample = PlayProject("csrf-sample", appVersion, Seq(), mainLang = SCALA, path = file("sample/ScalaSample")).settings(
+      organization := "jto",
+      resolvers ++= Seq(Repos.sandbox, Repos.jtoRepo),
+      publishTo := Some(Repos.sandbox),
+      credentials += Credentials(Path.userHome / ".sbt" / ".licredentials")
+    ).dependsOn(plugin)
 
 }

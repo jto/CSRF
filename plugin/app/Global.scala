@@ -61,7 +61,7 @@ object CSRF {
 	*/
 	def addSessionToken(req: RequestHeader, res: Result, token: Token): Result = res match {
 		case r: PlainResult => addSessionToken(req, r, token)
-		case r => r
+		case r: AsyncResult => r.transform(addSessionToken(req, _, token))
 	}
 	def addSessionToken(req: RequestHeader, r: PlainResult, token: Token): PlainResult = {
 		if(req.session.get(TOKEN_NAME).isDefined){
@@ -77,7 +77,7 @@ object CSRF {
 	}
 
 	/**
-	* Add token to the request if necessary
+	* Add token to the request if necessary (token not yet in session)
 	*/
 	def addToken(request: RequestHeader, token: Token): RequestHeader = request.session.get(TOKEN_NAME)
 		.map(_ => request)
@@ -94,10 +94,8 @@ object CSRFFilter extends Filter {
 			.right.map { r =>
 			  import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
 				val requestWithToken = addToken(r, token)
-				next(requestWithToken) match {
-					case ar: AsyncResult => AsyncResult(ar.result.map(addSessionToken(request, _, token)))
-					case result => addSessionToken(request, result, token)
-				}
+				println(requestWithToken.session)
+				addSessionToken(request, next(requestWithToken), token)
 			}
 			.fold(identity, identity)
 	}
@@ -106,9 +104,8 @@ object CSRFFilter extends Filter {
 /**
 * Default global, use this if CSRF is your only Filter
 */
-object Global extends GlobalSettings {
-	import CSRF._
-	override def onRouteRequest(request: RequestHeader): Option[Handler] = {
-		Filters(super.onRouteRequest(request), CSRFFilter)
+object Global extends WithFilters(CSRFFilter) with GlobalSettings {
+	override def doFilter(a:EssentialAction): EssentialAction = {
+		Filters(a, CSRFFilter)
 	}
 }

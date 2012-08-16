@@ -17,6 +17,7 @@ object Application extends Controller {
   )
   
   def index = Action { implicit request =>
+    println("ACTION: " + request.session)
     Ok(views.html.index(request.session.get("csrfToken").getOrElse("")))
   }
   
