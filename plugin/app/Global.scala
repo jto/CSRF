@@ -81,30 +81,32 @@ object CSRF {
 	*/
 	def addToken(request: RequestHeader, token: Token): RequestHeader = request.session.get(TOKEN_NAME)
 		.map(_ => request)
-		.getOrElse(new WrappedRequest(Request[AnyContent](request, null)) { // XXX: ouuucchhhh
+		.getOrElse(new RequestHeader { // XXX: ouuucchhhh
+
+			val d = Cookies(Some(Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))))
+
+			def uri = request.uri
+			def path = request.path
+			def method = request.method
+			def queryString = request.queryString
+			def remoteAddress = request.remoteAddress
 
 			// Fix Jim's "first request has no token in session" bug
 			// when play is copying request object, it's not copying lazy vals
 			// session is actually extracted *again* from cookies each time the request is copied
 			// We need to reencode session into cookies, into headers, that's painful
-			override val headers: Headers = new Headers {
-				def getAll(key: String): Seq[String] = {
-					if(key != play.api.http.HeaderNames.COOKIE)
-						request.headers.getAll(key)
-					else
-						cookiesHeader.toSeq
-				}
-				def keys: Set[String] = 
-					request.headers.keys + play.api.http.HeaderNames.COOKIE
+			import play.api.http._
+			override def headers: Headers = new Headers {
+				def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
+				def keys: Set[String] = toMap.keys.toSet
+				def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
 			}
 
-			val newSession = request.session + (TOKEN_NAME -> token)
-			lazy val cookiesHeader = Some(Cookies.merge(
-				headers.get(play.api.http.HeaderNames.COOKIE).getOrElse(""),
-				Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data)))
-		  ))
-		  override lazy val cookies: Cookies = Cookies(cookiesHeader)
-			override lazy val session = newSession
+			lazy val newSession = request.session + (TOKEN_NAME -> token)
+			lazy val sc = Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+			lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
+				Cookies.merge(c, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+			}.getOrElse(sc)
 		})
 }
 
