@@ -118,7 +118,6 @@ object CSRFFilter extends Filter {
 			.right.map { r =>
 			  import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
 				val requestWithToken = addToken(r, token)
-				println(requestWithToken.session)
 				addSessionToken(request, next(requestWithToken), token)
 			}
 			.fold(identity, identity)

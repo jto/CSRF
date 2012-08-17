@@ -1,5 +1,7 @@
 package controllers
 
+import play.Logger._
+
 import play.api._
 import play.api.data._
 import play.api.data.Forms._
@@ -8,7 +10,7 @@ import play.api.mvc._
 import play.api.libs.json._
 
 object Application extends Controller {
-  
+
   val loginForm = Form(
     tuple(
       "name" -> text,
@@ -17,9 +19,9 @@ object Application extends Controller {
   )
   
   def index = Action { implicit request =>
-    println("ACTION COOKIES: " + request.cookies)
-    println("ACTION SESSION: " + request.session)
-    Ok(views.html.index(request.session.get("csrfToken").getOrElse("")))
+    import jto.scala.csrf._
+    trace("CSRF TOKEN: " + request.session.get(CSRF.TOKEN_NAME))
+    Ok(views.html.index(request.session.get(CSRF.TOKEN_NAME).getOrElse("")))
   }
   
   def save = Action{ implicit request =>
