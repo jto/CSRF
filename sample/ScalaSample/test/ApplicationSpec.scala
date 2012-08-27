@@ -9,7 +9,7 @@ import jto.scala.csrf._
 
 class CSRFSpec extends Specification {
 
-  val fakeApp = FakeApplication(additionalConfiguration = Map("application.secret" -> "42"))
+  val fakeApp = FakeApplication(path = new java.io.File("sample/ScalaSample"))
 
   val showToken = FakeRequest(GET, "/test/token")
   val postData =  FakeRequest(POST, "/test/post")
@@ -71,6 +71,7 @@ class CSRFSpec extends Specification {
       route(showToken).flatMap { 
         session(_).get(CSRF.TOKEN_NAME)
       }.flatMap { token =>
+        // TODO: Add contructor with ActionRef
         // TODO: Add helper in FakeRequest for GET params
         route(FakeRequest(POST, "/test/post?%s=%s".format(CSRF.TOKEN_NAME, token.reverse))
           .withSession(CSRF.TOKEN_NAME -> token), "Hello World!")
