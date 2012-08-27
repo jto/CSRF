@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.08.15.c4c3576"
+    val appVersion      = "2012.08.15.c4c3576.v2"
 
     object Repos {
       val pattern = Patterns(
@@ -25,9 +25,9 @@ object ApplicationBuild extends Build {
       "jto" %% "filters" % appVersion, // versions should match
       "commons-codec" % "commons-codec" % "1.6"
     )
-    
-    lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li")) 
-      
+
+    lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li"))
+
 
     lazy val plugin = PlayProject(appName, appVersion, pluginDependencies, mainLang = SCALA, path = file("plugin")).settings(
       organization := "jto",
@@ -38,8 +38,8 @@ object ApplicationBuild extends Build {
       credentials += Credentials(Path.userHome / ".sbt" / ".licredentials"),
       publishMavenStyle := false
     )//.dependsOn(filters)
-    
-    
+
+
     lazy val sample = PlayProject("csrf-sample", appVersion, Seq(), mainLang = SCALA, path = file("sample/ScalaSample")).settings(
       organization := "jto",
       resolvers ++= Seq(Repos.sandbox, Repos.jtoRepo),
