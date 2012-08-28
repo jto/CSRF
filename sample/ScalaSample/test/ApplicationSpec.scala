@@ -96,17 +96,43 @@ class CSRFSpec extends Specification {
 
   }
 
-  val fakeAppWithCookieName = FakeApplication(path = new java.io.File("sample/ScalaSample"),
-    additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID"))
+  val fakeAppNoCreate = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+      additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID"))
 
   "CSRF module with csrf.cookie.name" should {
     "put a CSRF Token in Cookies(CSRF.COOKIES)" in running(fakeAppWithCookieName) {
-      import play.api.Play.current
       val result = route(showToken)
       result must beSome.which { r =>
         status(r) must equalTo(OK)
         cookies(r).get("JSESSIONID") must beSome
       }
     }
+
+
+    /*
+    // TODO: won't run until Conf Pull request is merged
+    val fakeAppNoCreate = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+      additionalConfiguration = Map("csrf.cookie.createIfNotFound" -> false))
+
+    "NOT create a Token in Session when csrf.cookie.createIfNotFound=false" in running(fakeAppNoCreate) {
+      val result = route(showToken)
+      result must beSome.which { r =>
+        status(r) must equalTo(OK)
+        session(r).get(TOKEN_NAME) must beNone
+      }
+    }
+
+    val fakeAppWithCookieNameNoCreate = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+        additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID", "csrf.cookie.createIfNotFound" -> false))
+    "NOT create a Token in Cookie when csrf.cookie.createIfNotFound=false" in running(fakeAppWithCookieNameNoCreate) {
+      val result = route(showToken)
+      result must beSome.which { r =>
+        status(r) must equalTo(OK)
+        cookies(r).get("JSESSIONID") must beNone
+      }
+    }
+    */
+
   }
+
 }

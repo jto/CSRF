@@ -78,6 +78,7 @@ object CSRF {
     case r: AsyncResult => r.transform(addResponseToken(req, _, token))
   }
   def addResponseToken(req: RequestHeader, r: PlainResult, token: Token): PlainResult = {
+
     /**
      * Add Token to the Response session if necessary
      */
@@ -107,7 +108,10 @@ object CSRF {
        }
      }
 
-     COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+     if(CREATE_IF_NOT_FOUND)
+       COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+     else
+       r
   }
 
   /**
@@ -177,7 +181,10 @@ object CSRF {
         }.getOrElse(sc)
       })
 
-      COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+      if(CREATE_IF_NOT_FOUND)
+        COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+      else
+        request
   }
 }
 
