@@ -32,13 +32,13 @@ object CSRF {
     import play.api.Play.current
     import scala.collection.JavaConverters._
 
-    private val c = Play.configuration
+    def c = Play.configuration
 
-    lazy val TOKEN_NAME: String = c.getString("csrf.token.name").getOrElse("csrfToken")
-    lazy val COOKIE_NAME: Option[String] = c.getString("csrf.cookie.name") // If None, we search for TOKEN_NAME in play session
-    lazy val POST_LOOKUP: Boolean = c.getBoolean("csrf.postLookup").getOrElse(true)
-    lazy val CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
-    lazy val UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
+    def TOKEN_NAME: String = c.getString("csrf.token.name").getOrElse("csrfToken")
+    def COOKIE_NAME: Option[String] = c.getString("csrf.cookie.name") // If None, we search for TOKEN_NAME in play session
+    def POST_LOOKUP: Boolean = c.getBoolean("csrf.postLookup").getOrElse(true)
+    def CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
+    def UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
   }
 
   import Conf._
@@ -140,9 +140,10 @@ object CSRF {
         // We need to reencode session into cookies, into headers, that's painful
         import play.api.http._
         override def headers: Headers = new Headers {
-          def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
-          def keys: Set[String] = toMap.keys.toSet
-          def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+          override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
+          override def keys: Set[String] = toMap.keys.toSet
+          override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+          override def data = toMap.toSeq
         }
 
         lazy val newSession = request.session + (TOKEN_NAME -> token)
@@ -164,9 +165,10 @@ object CSRF {
 
         import play.api.http._
         override def headers: Headers = new Headers {
-          def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
-          def keys: Set[String] = toMap.keys.toSet
-          def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+          override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
+          override def keys: Set[String] = toMap.keys.toSet
+          override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+          override def data = toMap.toSeq
         }
 
         lazy val sc = Cookies.encode(Seq(Cookie(c, token)))

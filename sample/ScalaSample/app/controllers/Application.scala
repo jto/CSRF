@@ -20,7 +20,6 @@ object Application extends Controller {
 
   def index = Action { implicit request =>
     import jto.scala.csrf._
-    trace("CSRF TOKEN: " + CSRF.getToken(request))
     Ok(views.html.index(CSRF.getToken(request).getOrElse("")))
   }
 

@@ -96,10 +96,12 @@ class CSRFSpec extends Specification {
 
   }
 
-  val fakeAppWithCookieName = FakeApplication(path = new java.io.File("sample/ScalaSample"), additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID"))
+  val fakeAppWithCookieName = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+    additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID"))
 
   "CSRF module with csrf.cookie.name" should {
-    "put a CSRF Token in Cookies(CSRF.COOKIES)" in running(fakeApp) {
+    "put a CSRF Token in Cookies(CSRF.COOKIES)" in running(fakeAppWithCookieName) {
+      import play.api.Play.current
       val result = route(showToken)
       result must beSome.which { r =>
         status(r) must equalTo(OK)
