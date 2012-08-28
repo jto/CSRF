@@ -1,11 +1,11 @@
 // Copyright 2012 Julien Tournay
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //    http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,109 +26,174 @@ import java.security.SecureRandom
 import org.apache.commons.codec.binary._
 
 object CSRF {
-	type Token = String
-	
-	val TOKEN_NAME = "csrfToken"
-	val encoder = new Hex
-	val random = new SecureRandom
+  type Token = String
 
-	val INVALID_TOKEN: PlainResult  = BadRequest("Invalid CSRF Token")
-	var UNSAFE_METHOD = "PUT|POST|DELETE".r
+  object Conf {
+    import play.api.Play.current
+    import scala.collection.JavaConverters._
 
-	def generate: Token = {
-		val bytes = new Array[Byte](64)
-		random.nextBytes(bytes)
-		new String(encoder.encode(bytes), "UTF8")
-	}
+    private val c = Play.configuration
 
-	def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
+    lazy val TOKEN_NAME: String = c.getString("csrf.token.name").getOrElse("csrfToken")
+    lazy val COOKIE_NAME: Option[String] = c.getString("csrf.cookie.name") // If None, we search for TOKEN_NAME in play session
+    lazy val POST_LOOKUP: Boolean = c.getBoolean("csrf.postLookup").getOrElse(true)
+    lazy val CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
+    lazy val UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
+  }
 
-	// -
-	def checkRequest(request: RequestHeader): Either[PlainResult, RequestHeader] = {
-		request.method match {
-			case UNSAFE_METHOD() => {
-				(for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
-					token <- maybeTokens.headOption;
-					sessionToken <- request.session.get(TOKEN_NAME)
-				} yield if(checkTokens(token, sessionToken)) Right(request) else Left(INVALID_TOKEN)) getOrElse Left(INVALID_TOKEN)
-			}
-			case _ => Right(request)
-		}
-	}
+  import Conf._
 
-	/**
-	* Add the session token to the Response if it's not already in the request
-	*/
-	def addSessionToken(req: RequestHeader, res: Result, token: Token): Result = res match {
-		case r: PlainResult => addSessionToken(req, r, token)
-		case r: AsyncResult => r.transform(addSessionToken(req, _, token))
-	}
-	def addSessionToken(req: RequestHeader, r: PlainResult, token: Token): PlainResult = {
-		if(req.session.get(TOKEN_NAME).isDefined){
-			r
-		}
-		else {
-			val session = Cookies(r.header.headers.get("Set-Cookie"))
-				.get(Session.COOKIE_NAME).map(_.value).map(Session.decode)
-				.getOrElse(Map.empty)
-			val newSession = if(session.contains(TOKEN_NAME)) session else (session + (TOKEN_NAME -> token))
-			r.withSession(Session.deserialize(newSession))
-		}
-	}
+  val encoder = new Hex
+  val random = new SecureRandom
 
-	/**
-	* Add token to the request if necessary (token not yet in session)
-	*/
-	def addToken(request: RequestHeader, token: Token): RequestHeader = request.session.get(TOKEN_NAME)
-		.map(_ => request)
-		.getOrElse(new RequestHeader { // XXX: ouuucchhhh
+  val INVALID_TOKEN: PlainResult  = BadRequest("Invalid CSRF Token")
 
-			val d = Cookies(Some(Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))))
+  def generate: Token = {
+    val bytes = new Array[Byte](64)
+    random.nextBytes(bytes)
+    new String(encoder.encode(bytes), "UTF8")
+  }
 
-			def uri = request.uri
-			def path = request.path
-			def method = request.method
-			def queryString = request.queryString
-			def remoteAddress = request.remoteAddress
+  def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
 
-			// Fix Jim's "first request has no token in session" bug
-			// when play is copying request object, it's not copying lazy vals
-			// session is actually extracted *again* from cookies each time the request is copied
-			// We need to reencode session into cookies, into headers, that's painful
-			import play.api.http._
-			override def headers: Headers = new Headers {
-				def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
-				def keys: Set[String] = toMap.keys.toSet
-				def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
-			}
+  // -
+  def checkRequest(request: RequestHeader): Either[PlainResult, RequestHeader] = {
+    request.method match {
+      case UNSAFE_METHOD() => {
+        (for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
+          token <- maybeTokens.headOption;
+          cookieToken <- COOKIE_NAME.flatMap(request.cookies.get).map(_.value).orElse(request.session.get(TOKEN_NAME))
+        } yield if(checkTokens(token, cookieToken)) Right(request) else Left(INVALID_TOKEN)) getOrElse Left(INVALID_TOKEN)
+      }
+      case _ => Right(request)
+    }
+  }
 
-			lazy val newSession = request.session + (TOKEN_NAME -> token)
-			lazy val sc = Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
-			lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
-				Cookies.merge(c, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
-			}.getOrElse(sc)
-		})
+  /**
+  * Add the token to the Response (session|cookie) if it's not already in the request
+  */
+  // TODO: CREATE_IF_NOT_FOUND
+  def addResponseToken(req: RequestHeader, res: Result, token: Token): Result = res match {
+    case r: PlainResult => addResponseToken(req, r, token)
+    case r: AsyncResult => r.transform(addResponseToken(req, _, token))
+  }
+  def addResponseToken(req: RequestHeader, r: PlainResult, token: Token): PlainResult = {
+    /**
+     * Add Token to the Response session if necessary
+     */
+     def addSessionToken: PlainResult = {
+       if(req.session.get(TOKEN_NAME).isDefined){
+         r
+       }
+       else {
+         val session = Cookies(r.header.headers.get("Set-Cookie"))
+           .get(Session.COOKIE_NAME).map(_.value).map(Session.decode)
+           .getOrElse(Map.empty)
+         val newSession = if(session.contains(TOKEN_NAME)) session else (session + (TOKEN_NAME -> token))
+         r.withSession(Session.deserialize(newSession))
+       }
+     }
+
+     /**
+     * Add Token to the Response cookies if necessary
+     */
+     def addCookieToken(c: String): PlainResult = {
+       if(req.cookies.get(c).isDefined){
+         r
+       }
+       else {
+         val cookies = Cookies(r.header.headers.get("Set-Cookie"))
+         cookies.get(c).map(_ => r).getOrElse(r.withCookies(Cookie(c, token)))
+       }
+     }
+
+     COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+  }
+
+  /**
+  * Extract token fron current request
+  */
+  def getToken(request: RequestHeader): Option[Token] = COOKIE_NAME
+    .flatMap(n => request.cookies.get(n).map(_.value))
+    .orElse(request.session.get(TOKEN_NAME))
+
+  /**
+  * Add token to the request if necessary (token not yet in session)
+  */
+  // TODO: CREATE_IF_NOT_FOUND
+  def addRequestToken(request: RequestHeader, token: Token): RequestHeader = {
+    def addSessionToken = request.session.get(TOKEN_NAME)
+      .map(_ => request)
+      .getOrElse(new RequestHeader { // XXX: ouuucchhhh
+
+        val d = Cookies(Some(Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))))
+
+        def uri = request.uri
+        def path = request.path
+        def method = request.method
+        def queryString = request.queryString
+        def remoteAddress = request.remoteAddress
+
+        // Fix Jim's "first request has no token in session" bug
+        // when play is copying request object, it's not copying lazy vals
+        // session is actually extracted *again* from cookies each time the request is copied
+        // We need to reencode session into cookies, into headers, that's painful
+        import play.api.http._
+        override def headers: Headers = new Headers {
+          def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
+          def keys: Set[String] = toMap.keys.toSet
+          def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+        }
+
+        lazy val newSession = request.session + (TOKEN_NAME -> token)
+        lazy val sc = Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
+          Cookies.merge(c, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+        }.getOrElse(sc)
+      })
+
+    def addCookieToken(c: String) = request.cookies.get(c)
+      .map(_ => request)
+      .getOrElse(new RequestHeader { // XXX: ouuucchhhh
+
+        def uri = request.uri
+        def path = request.path
+        def method = request.method
+        def queryString = request.queryString
+        def remoteAddress = request.remoteAddress
+
+        import play.api.http._
+        override def headers: Headers = new Headers {
+          def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
+          def keys: Set[String] = toMap.keys.toSet
+          def toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
+        }
+
+        lazy val sc = Cookies.encode(Seq(Cookie(c, token)))
+        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
+          Cookies.merge(c, Seq(Cookie(c, token)))
+        }.getOrElse(sc)
+      })
+
+      COOKIE_NAME.map(addCookieToken).getOrElse(addSessionToken)
+  }
 }
 
 object CSRFFilter extends Filter {
-	import CSRF._
-	override def apply(next: RequestHeader => Result)(request: RequestHeader): Result = {
-		lazy val token = CSRF.generate
-		checkRequest(request)
-			.right.map { r =>
-			  import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
-				val requestWithToken = addToken(r, token)
-				addSessionToken(request, next(requestWithToken), token)
-			}
-			.fold(identity, identity)
-	}
+  import CSRF._
+  override def apply(next: RequestHeader => Result)(request: RequestHeader): Result = {
+    lazy val token = CSRF.generate
+    checkRequest(request)
+      .right.map { r =>
+        import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
+        val requestWithToken = addRequestToken(r, token)
+        addResponseToken(request, next(requestWithToken), token)
+      }
+      .fold(identity, identity)
+  }
 }
 
 /**
 * Default global, use this if CSRF is your only Filter
 */
-object Global extends WithFilters(CSRFFilter) with GlobalSettings {
-	override def doFilter(a:EssentialAction): EssentialAction = {
-		Filters(a, CSRFFilter)
-	}
-}
+object Global extends WithFilters(CSRFFilter) with GlobalSettings

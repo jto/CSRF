@@ -26,8 +26,7 @@ object ApplicationBuild extends Build {
       "commons-codec" % "commons-codec" % "1.6"
     )
 
-    lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li"))
-
+    // lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li"))
 
     lazy val plugin = PlayProject(appName, appVersion, pluginDependencies, mainLang = SCALA, path = file("plugin")).settings(
       organization := "jto",

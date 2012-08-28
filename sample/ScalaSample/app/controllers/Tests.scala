@@ -13,11 +13,11 @@ object Tests extends Controller {
 
   def show = Action { implicit request =>
     import jto.scala.csrf._
-    val token = request.session.get(CSRF.TOKEN_NAME)
+    val token = CSRF.getToken(request)
     trace("CSRF TOKEN: " + token)
     Ok(token.getOrElse(""))
   }
-  
+
   def post = Action { implicit request =>
     Ok(request.body.toString)
   }

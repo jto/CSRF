@@ -17,16 +17,16 @@ object Application extends Controller {
       "age" -> text
     )
   )
-  
+
   def index = Action { implicit request =>
     import jto.scala.csrf._
-    trace("CSRF TOKEN: " + request.session.get(CSRF.TOKEN_NAME))
-    Ok(views.html.index(request.session.get(CSRF.TOKEN_NAME).getOrElse("")))
+    trace("CSRF TOKEN: " + CSRF.getToken(request))
+    Ok(views.html.index(CSRF.getToken(request).getOrElse("")))
   }
-  
+
   def save = Action{ implicit request =>
     val (name, age) = loginForm.bindFromRequest.get
     Ok(Json.toJson(Map("name" -> name, "age" -> age)))
   }
-  
+
 }
