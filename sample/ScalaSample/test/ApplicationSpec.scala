@@ -47,7 +47,7 @@ class CSRFSpec extends Specification {
     }
 
     "reject POST without token" in running(fakeApp) {
-      route(postData, "Hello World!") must beSome.which { r =>
+      route(postData, Map("hello" -> Seq("world"))) must beSome.which { r =>
         status(r) must equalTo(BAD_REQUEST)
         session(r).get(TOKEN_NAME) must beNone
       }
@@ -82,12 +82,24 @@ class CSRFSpec extends Specification {
       }
     }
 
-    "allow POST with correct token" in running(fakeApp) {
+    "allow POST with correct token in queryString" in running(fakeApp) {
       route(showToken).flatMap {
         session(_).get(TOKEN_NAME)
       }.flatMap { token =>
         route(FakeRequest(POST, "/test/post?%s=%s".format(TOKEN_NAME, token))
           .withSession(TOKEN_NAME -> token), "Hello World!")
+      } must beSome.which { r =>
+        status(r) must equalTo(OK)
+        session(r).get(TOKEN_NAME) must beNone
+      }
+    }
+
+    "allow POST with correct token in body" in running(fakeApp) {
+      route(showToken).flatMap {
+        session(_).get(TOKEN_NAME)
+      }.flatMap { token =>
+        route(FakeRequest(POST, "/test/post")
+          .withSession(TOKEN_NAME -> token), Map(TOKEN_NAME -> Seq(token)))
       } must beSome.which { r =>
         status(r) must equalTo(OK)
         session(r).get(TOKEN_NAME) must beNone

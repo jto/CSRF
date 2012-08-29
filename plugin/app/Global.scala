@@ -36,7 +36,7 @@ object CSRF {
 
     def TOKEN_NAME: String = c.getString("csrf.token.name").getOrElse("csrfToken")
     def COOKIE_NAME: Option[String] = c.getString("csrf.cookie.name") // If None, we search for TOKEN_NAME in play session
-    def POST_LOOKUP: Boolean = c.getBoolean("csrf.postLookup").getOrElse(true)
+    def POST_LOOKUP: Boolean = c.getBoolean("csrf.tokenInBody").getOrElse(true)
     def CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
     def UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
   }
@@ -57,11 +57,17 @@ object CSRF {
   def checkTokens(paramToken: String, sessionToken: String) = paramToken == sessionToken
 
   // -
-  def checkRequest(request: RequestHeader): Either[PlainResult, RequestHeader] = {
+  def checkRequest(request: RequestHeader, body: Option[Map[String, Seq[String]]] = None): Either[PlainResult, RequestHeader] = {
+    val maybeToken: Option[Token] = (
+      if(POST_LOOKUP)
+        body.flatMap(_.get(TOKEN_NAME)).orElse(request.queryString.get(TOKEN_NAME))
+      else
+        request.queryString.get(TOKEN_NAME)
+    ).flatMap(_.headOption)
+
     request.method match {
       case UNSAFE_METHOD() => {
-        (for{ maybeTokens <- request.queryString.get(TOKEN_NAME);
-          token <- maybeTokens.headOption;
+        (for{ token <- maybeToken;
           cookieToken <- COOKIE_NAME.flatMap(request.cookies.get).map(_.value).orElse(request.session.get(TOKEN_NAME))
         } yield if(checkTokens(token, cookieToken)) Right(request) else Left(INVALID_TOKEN)) getOrElse Left(INVALID_TOKEN)
       }
@@ -72,7 +78,6 @@ object CSRF {
   /**
   * Add the token to the Response (session|cookie) if it's not already in the request
   */
-  // TODO: CREATE_IF_NOT_FOUND
   def addResponseToken(req: RequestHeader, res: Result, token: Token): Result = res match {
     case r: PlainResult => addResponseToken(req, r, token)
     case r: AsyncResult => r.transform(addResponseToken(req, _, token))
@@ -124,7 +129,6 @@ object CSRF {
   /**
   * Add token to the request if necessary (token not yet in session)
   */
-  // TODO: CREATE_IF_NOT_FOUND
   def addRequestToken(request: RequestHeader, token: Token): RequestHeader = {
     def addSessionToken = request.session.get(TOKEN_NAME)
       .map(_ => request)
@@ -195,14 +199,19 @@ object CSRFFilter extends EssentialFilter {
   def apply(next: EssentialAction): EssentialAction = new EssentialAction {
     def apply(request: RequestHeader): Iteratee[Array[Byte],Result] = {
       lazy val token = CSRF.generate
-
-      checkRequest(request)
-        .right.map { r =>
-          import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
-          val requestWithToken = addRequestToken(r, token)
-          addResponseToken(request, AsyncResult(next(requestWithToken).run), token)
+      import play.api.libs.concurrent.execution.defaultContext
+      (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
+          val eventuallyEither = Enumerator(b).run(BodyParsers.parse.tolerantFormUrlEncoded(request))
+          eventuallyEither.map(println)
+          Iteratee.flatten(
+            eventuallyEither.map{
+              _.fold(_ => checkRequest(request), body => checkRequest(request, Some(body)))
+                .fold(
+                  result => Done(result, Input.Empty: Input[Array[Byte]]),
+                  r => Iteratee.flatten(Enumerator(b).apply(next(addRequestToken(r, token)))).map(result => addResponseToken(request, result, token))
+                )})
         }
-        .fold(Action(_)(request), Action(_)(request))
+
     }
   }
 }
