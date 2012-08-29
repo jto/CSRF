@@ -188,19 +188,25 @@ object CSRF {
   }
 }
 
-object CSRFFilter extends Filter {
+object CSRFFilter extends EssentialFilter {
+  import play.api.libs.iteratee._
   import CSRF._
-  override def apply(next: RequestHeader => Result)(request: RequestHeader): Result = {
-    lazy val token = CSRF.generate
-    checkRequest(request)
-      .right.map { r =>
-        import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
-        val requestWithToken = addRequestToken(r, token)
-        addResponseToken(request, next(requestWithToken), token)
-      }
-      .fold(identity, identity)
+
+  def apply(next: EssentialAction): EssentialAction = new EssentialAction {
+    def apply(request: RequestHeader): Iteratee[Array[Byte],Result] = {
+      lazy val token = CSRF.generate
+
+      checkRequest(request)
+        .right.map { r =>
+          import scala.concurrent.ExecutionContext.Implicits.global // I have no idea why this is required, and what it's doing
+          val requestWithToken = addRequestToken(r, token)
+          addResponseToken(request, AsyncResult(next(requestWithToken).run), token)
+        }
+        .fold(Action(_)(request), Action(_)(request))
+    }
   }
 }
+
 
 /**
 * Default global, use this if CSRF is your only Filter
