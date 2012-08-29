@@ -96,7 +96,7 @@ class CSRFSpec extends Specification {
 
   }
 
-  val fakeAppNoCreate = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+  val fakeAppWithCookieName = FakeApplication(path = new java.io.File("sample/ScalaSample"),
       additionalConfiguration = Map("csrf.cookie.name" -> "JSESSIONID"))
 
   "CSRF module with csrf.cookie.name" should {
