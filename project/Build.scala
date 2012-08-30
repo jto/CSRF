@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.08.15.c4c3576.v3"
+    val appVersion      = "2012.08.15.c4c3576.v1"
 
     object Repos {
       val pattern = Patterns(
@@ -22,7 +22,7 @@ object ApplicationBuild extends Build {
     }
 
     val pluginDependencies = Seq(
-      "jto" %% "filters" % "2012.08.15.c4c3576.v3", // versions should match
+      "jto" %% "filters" % "2012.08.15.c4c3576.v1", // versions should match
       "commons-codec" % "commons-codec" % "1.6"
     )
 

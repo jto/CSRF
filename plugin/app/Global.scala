@@ -151,7 +151,7 @@ object CSRF {
           override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
           override def keys: Set[String] = toMap.keys.toSet
           override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
-          override def data = toMap.toSeq
+          // override def data = toMap.toSeq
         }
 
         lazy val newSession = request.session + (TOKEN_NAME -> token)
@@ -176,7 +176,7 @@ object CSRF {
           override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
           override def keys: Set[String] = toMap.keys.toSet
           override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
-          override def data = toMap.toSeq
+          // override def data = toMap.toSeq
         }
 
         lazy val sc = Cookies.encode(Seq(Cookie(c, token)))
