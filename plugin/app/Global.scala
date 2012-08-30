@@ -202,7 +202,6 @@ object CSRFFilter extends EssentialFilter {
       import play.api.libs.concurrent.execution.defaultContext
       (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
           val eventuallyEither = Enumerator(b).run(BodyParsers.parse.tolerantFormUrlEncoded(request))
-          eventuallyEither.map(println)
           Iteratee.flatten(
             eventuallyEither.map{
               _.fold(_ => checkRequest(request), body => checkRequest(request, Some(body)))
