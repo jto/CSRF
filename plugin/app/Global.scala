@@ -141,6 +141,7 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
+        //override def version = request.version
 
         // Fix Jim's "first request has no token in session" bug
         // when play is copying request object, it's not copying lazy vals
@@ -151,7 +152,7 @@ object CSRF {
           override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
           override def keys: Set[String] = toMap.keys.toSet
           override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
-          // override def data = toMap.toSeq
+          override def data = toMap.toSeq
         }
 
         lazy val newSession = request.session + (TOKEN_NAME -> token)
@@ -170,13 +171,14 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
+        //override def version = request.version
 
         import play.api.http._
         override def headers: Headers = new Headers {
           override def getAll(key: String): Seq[String] = toMap.get(key).flatten.toSeq
           override def keys: Set[String] = toMap.keys.toSet
           override lazy val toMap: Map[String,Seq[String]] = request.headers.toMap - HeaderNames.COOKIE + (HeaderNames.COOKIE -> Seq(cookiesHeader))
-          // override def data = toMap.toSeq
+          override def data = toMap.toSeq
         }
 
         lazy val sc = Cookies.encode(Seq(Cookie(c, token)))
@@ -192,13 +194,13 @@ object CSRF {
   }
 }
 
-object CSRFFilter extends EssentialFilter {
+class CSRFFilter(generator: () => CSRF.Token) extends EssentialFilter {
   import play.api.libs.iteratee._
   import CSRF._
 
   def apply(next: EssentialAction): EssentialAction = new EssentialAction {
     def apply(request: RequestHeader): Iteratee[Array[Byte],Result] = {
-      lazy val token = CSRF.generate
+      val token = generator()
       import play.api.libs.concurrent.execution.defaultContext
       (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
           val eventuallyEither = Enumerator(b).run(BodyParsers.parse.tolerantFormUrlEncoded(request))
@@ -215,8 +217,13 @@ object CSRFFilter extends EssentialFilter {
   }
 }
 
+object CSRFFilter {
+  def apply() = new CSRFFilter(CSRF.generate _)
+  def apply(generator: () => CSRF.Token) = new CSRFFilter(generator)
+}
+
 
 /**
 * Default global, use this if CSRF is your only Filter
 */
-object Global extends WithFilters(CSRFFilter) with GlobalSettings
+object Global extends WithFilters(CSRFFilter()) with GlobalSettings

@@ -8,6 +8,8 @@ import play.api.test.Helpers._
 import jto.scala.csrf._
 import jto.scala.csrf.CSRF.Conf._
 
+object FakeGlobal extends /* jto.scala.filters.WithFilters(CSRFFilter(42.toString)) with */ play.api.GlobalSettings
+
 class CSRFSpec extends Specification {
 
   val fakeApp = FakeApplication(path = new java.io.File("sample/ScalaSample"))
@@ -106,6 +108,23 @@ class CSRFSpec extends Specification {
       }
     }
 
+    // Won't work, need to investigate why. I think FakeApplication needs to have a withGlobal() method
+    val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"),
+      additionalConfiguration = Map("application.global" -> "test.FakeGlobal"))
+
+    "use the provided generator" in running(fakeAppWithFakeGlobal) {
+       route(showToken) must beSome.which { r =>
+        status(r) must equalTo(OK)
+        val contentToken = contentAsString(r)
+        val sessionToken = session(r).get(TOKEN_NAME)
+
+        sessionToken must beSome
+        contentToken must not(beEmpty)
+
+        sessionToken.get must beEqualTo("42")
+      }
+    }
+
   }
 
   val fakeAppWithCookieName = FakeApplication(path = new java.io.File("sample/ScalaSample"),
@@ -120,9 +139,6 @@ class CSRFSpec extends Specification {
       }
     }
 
-
-    /*
-    // TODO: won't run until Conf Pull request is merged
     val fakeAppNoCreate = FakeApplication(path = new java.io.File("sample/ScalaSample"),
       additionalConfiguration = Map("csrf.cookie.createIfNotFound" -> false))
 
@@ -143,8 +159,6 @@ class CSRFSpec extends Specification {
         cookies(r).get("JSESSIONID") must beNone
       }
     }
-    */
-
   }
 
 }
