@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.08.15.c4c3576.v3"
+    val appVersion      = "2012.08.15.c4c3576.v4"
 
     object Repos {
       val pattern = Patterns(
@@ -25,8 +25,6 @@ object ApplicationBuild extends Build {
       "jto" %% "filters" % "2012.08.15.c4c3576.v3" exclude("play", "play"), // versions should match
       "commons-codec" % "commons-codec" % "1.6"
     )
-
-    // lazy val filters = RootProject(uri("git://github.com/jto/play-filters.git#li"))
 
     lazy val plugin = PlayProject(appName, appVersion, pluginDependencies, mainLang = SCALA, path = file("plugin")).settings(
       organization := "jto",

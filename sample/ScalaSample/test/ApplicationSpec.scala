@@ -8,7 +8,7 @@ import play.api.test.Helpers._
 import jto.scala.csrf._
 import jto.scala.csrf.CSRF.Conf._
 
-object FakeGlobal extends /* jto.scala.filters.WithFilters(CSRFFilter(42.toString)) with */ play.api.GlobalSettings
+object FakeGlobal extends jto.scala.filters.WithFilters(CSRFFilter(42.toString)) with play.api.GlobalSettings
 
 class CSRFSpec extends Specification {
 
