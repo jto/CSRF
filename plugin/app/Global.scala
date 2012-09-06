@@ -141,7 +141,7 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        //override def version = request.version
+        override def version = request.version
 
         // Fix Jim's "first request has no token in session" bug
         // when play is copying request object, it's not copying lazy vals
@@ -171,7 +171,7 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        //override def version = request.version
+        override def version = request.version
 
         import play.api.http._
         override def headers: Headers = new Headers {

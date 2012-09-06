@@ -108,9 +108,7 @@ class CSRFSpec extends Specification {
       }
     }
 
-    // Won't work, need to investigate why. I think FakeApplication needs to have a withGlobal() method
-    val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"),
-      additionalConfiguration = Map("application.global" -> "test.FakeGlobal"))
+    val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"), withGlobal = Some(FakeGlobal))
 
     "use the provided generator" in running(fakeAppWithFakeGlobal) {
        route(showToken) must beSome.which { r =>
