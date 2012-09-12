@@ -49,7 +49,7 @@ object CSRF {
   val INVALID_TOKEN: PlainResult  = BadRequest("Invalid CSRF Token")
 
   def generate: Token = {
-    val bytes = new Array[Byte](64)
+    val bytes = new Array[Byte](10)
     random.nextBytes(bytes)
     new String(encoder.encode(bytes), "UTF8")
   }
@@ -141,7 +141,9 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        override def version = request.version
+        // override def version = request.version
+        // override def tags = request.tags
+        // override def id = request.id
 
         // Fix Jim's "first request has no token in session" bug
         // when play is copying request object, it's not copying lazy vals
@@ -171,7 +173,9 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        override def version = request.version
+        // override def version = request.version
+        // override def tags = request.tags
+        // override def id = request.id
 
         import play.api.http._
         override def headers: Headers = new Headers {

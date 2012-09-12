@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.08.15.c4c3576.v5-SNAPSHOT"
+    val appVersion      = "2012.08.15.c4c3576.v5"
 
     object Repos {
       val pattern = Patterns(
@@ -22,12 +22,12 @@ object ApplicationBuild extends Build {
     }
 
     val pluginDependencies = Seq(
-      "jto" %% "filters" % "2012.08.15.c4c3576.v4-SNAPSHOT", // versions should match
+      "jto" %% "filters" % "2012.08.15.c4c3576.v3", // versions should match
       "commons-codec" % "commons-codec" % "1.6"
     )
 
     lazy val plugin = PlayProject(appName, appVersion, pluginDependencies, mainLang = SCALA, path = file("plugin")).settings(
-      playPlugin := true,
+      //playPlugin := true,
       organization := "jto",
       licenses := Seq("Apache License v2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
       homepage := Some(url("https://github.com/jto/play-filters")),

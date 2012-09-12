@@ -108,20 +108,20 @@ class CSRFSpec extends Specification {
       }
     }
 
-    val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"), withGlobal = Some(FakeGlobal))
-
-    "use the provided generator" in running(fakeAppWithFakeGlobal) {
-       route(showToken) must beSome.which { r =>
-        status(r) must equalTo(OK)
-        val contentToken = contentAsString(r)
-        val sessionToken = session(r).get(TOKEN_NAME)
-
-        sessionToken must beSome
-        contentToken must not(beEmpty)
-
-        sessionToken.get must beEqualTo("42")
-      }
-    }
+    // val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"), withGlobal = Some(FakeGlobal))
+    //
+    //     "use the provided generator" in running(fakeAppWithFakeGlobal) {
+    //        route(showToken) must beSome.which { r =>
+    //         status(r) must equalTo(OK)
+    //         val contentToken = contentAsString(r)
+    //         val sessionToken = session(r).get(TOKEN_NAME)
+    //
+    //         sessionToken must beSome
+    //         contentToken must not(beEmpty)
+    //
+    //         sessionToken.get must beEqualTo("42")
+    //       }
+    //     }
 
   }
 
