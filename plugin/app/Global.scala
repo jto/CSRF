@@ -84,11 +84,14 @@ object CSRF {
   }
   def addResponseToken(req: RequestHeader, r: PlainResult, token: Token): PlainResult = {
 
+    play.Logger.trace("[CSRF] Adding token to result: " + r)
+
     /**
      * Add Token to the Response session if necessary
      */
      def addSessionToken: PlainResult = {
        if(req.session.get(TOKEN_NAME).isDefined){
+         play.Logger.trace("[CSRF] session already contains token")
          r
        }
        else {
@@ -96,7 +99,11 @@ object CSRF {
            .get(Session.COOKIE_NAME).map(_.value).map(Session.decode)
            .getOrElse(Map.empty)
          val newSession = if(session.contains(TOKEN_NAME)) session else (session + (TOKEN_NAME -> token))
-         r.withSession(Session.deserialize(newSession))
+         play.Logger.trace("[CSRF] Adding session token to response")
+         play.Logger.trace("[CSRF] response was: " + r)
+         val resp = r.withSession(Session.deserialize(newSession))
+         play.Logger.trace("[CSRF] response is now: " + resp)
+         resp
        }
      }
 
@@ -105,11 +112,16 @@ object CSRF {
      */
      def addCookieToken(c: String): PlainResult = {
        if(req.cookies.get(c).isDefined){
+         play.Logger.trace("[CSRF] cookie already contains token")
          r
        }
        else {
          val cookies = Cookies(r.header.headers.get("Set-Cookie"))
-         cookies.get(c).map(_ => r).getOrElse(r.withCookies(Cookie(c, token)))
+         play.Logger.trace("[CSRF] Adding cookie token to response")
+         play.Logger.trace("[CSRF] response was: " + r)
+         val resp = cookies.get(c).map(_ => r).getOrElse(r.withCookies(Cookie(c, token)))
+         play.Logger.trace("[CSRF] response is now: " + resp)
+         resp
        }
      }
 
@@ -130,11 +142,12 @@ object CSRF {
   * Add token to the request if necessary (token not yet in session)
   */
   def addRequestToken(request: RequestHeader, token: Token): RequestHeader = {
+
+    play.Logger.trace("[CSRF] Adding request token to request: " + request)
+
     def addSessionToken = request.session.get(TOKEN_NAME)
       .map(_ => request)
       .getOrElse(new RequestHeader { // XXX: ouuucchhhh
-
-        val d = Cookies(Some(Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))))
 
         def uri = request.uri
         def path = request.path
@@ -159,9 +172,14 @@ object CSRF {
 
         lazy val newSession = request.session + (TOKEN_NAME -> token)
         lazy val sc = Cookies.encode(Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+
+        play.Logger.trace("[CSRF] adding session token to request: " + newSession)
+
         lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
           Cookies.merge(c, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
         }.getOrElse(sc)
+
+        play.Logger.trace("[CSRF] cookies header value in request is now: " + cookiesHeader)
       })
 
     def addCookieToken(c: String) = request.cookies.get(c)
@@ -185,10 +203,14 @@ object CSRF {
           def data = toMap.toSeq
         }
 
+        play.Logger.trace("[CSRF] adding cookie %s token to request: %s".format(c, token))
+
         lazy val sc = Cookies.encode(Seq(Cookie(c, token)))
         lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
           Cookies.merge(c, Seq(Cookie(c, token)))
         }.getOrElse(sc)
+
+        play.Logger.trace("[CSRF] cookies header value in request is now: " + cookiesHeader)
       })
 
       if(CREATE_IF_NOT_FOUND)
@@ -204,6 +226,11 @@ class CSRFFilter(generator: () => CSRF.Token) extends EssentialFilter {
 
   def apply(next: EssentialAction): EssentialAction = new EssentialAction {
     def apply(request: RequestHeader): Iteratee[Array[Byte],Result] = {
+
+      play.Logger.trace("[CSRF] original request: " + request)
+      play.Logger.trace("[CSRF] original cookies: " + request.cookies)
+      play.Logger.trace("[CSRF] original session: " + request.session)
+
       val token = generator()
       import play.api.libs.concurrent.execution.defaultContext
       (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
