@@ -175,8 +175,8 @@ object CSRF {
 
         play.Logger.trace("[CSRF] adding session token to request: " + newSession)
 
-        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
-          Cookies.merge(c, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
+        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { cookies =>
+          Cookies.merge(cookies, Seq(Cookie(Session.COOKIE_NAME, Session.encode(newSession.data))))
         }.getOrElse(sc)
 
         play.Logger.trace("[CSRF] cookies header value in request is now: " + cookiesHeader)
@@ -206,8 +206,8 @@ object CSRF {
         play.Logger.trace("[CSRF] adding cookie %s token to request: %s".format(c, token))
 
         lazy val sc = Cookies.encode(Seq(Cookie(c, token)))
-        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { c =>
-          Cookies.merge(c, Seq(Cookie(c, token)))
+        lazy val cookiesHeader = request.headers.get(HeaderNames.COOKIE).map { cookies =>
+          Cookies.merge(cookies, Seq(Cookie(c, token)))
         }.getOrElse(sc)
 
         play.Logger.trace("[CSRF] cookies header value in request is now: " + cookiesHeader)

@@ -5,7 +5,7 @@ import PlayProject._
 object ApplicationBuild extends Build {
 
     val appName         = "csrf"
-    val appVersion      = "2012.09.13.b25ba80"
+    val appVersion      = "2012.09.14.d36ef9b"
 
     object Repos {
       val pattern = Patterns(
