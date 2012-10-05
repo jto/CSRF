@@ -22,7 +22,7 @@ object ApplicationBuild extends Build {
     }
 
     val pluginDependencies = Seq(
-      "jto" %% "filters" % "2012.08.15.c4c3576.v3", // versions should match
+      "jto" %% "filters" % "2012.09.20.1886ca6.v3", // versions should match
       "commons-codec" % "commons-codec" % "1.6"
     )
 
