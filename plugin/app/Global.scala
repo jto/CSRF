@@ -154,9 +154,9 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        // override def version = request.version
-        // override def tags = request.tags
-        // override def id = request.id
+        override def version = request.version
+        override def tags = request.tags
+        override def id = request.id
 
         // Fix Jim's "first request has no token in session" bug
         // when play is copying request object, it's not copying lazy vals
@@ -191,9 +191,9 @@ object CSRF {
         def method = request.method
         def queryString = request.queryString
         def remoteAddress = request.remoteAddress
-        // override def version = request.version
-        // override def tags = request.tags
-        // override def id = request.id
+        override def version = request.version
+        override def tags = request.tags
+        override def id = request.id
 
         import play.api.http._
         override def headers: Headers = new Headers {
@@ -221,29 +221,42 @@ object CSRF {
 }
 
 class CSRFFilter(generator: () => CSRF.Token) extends EssentialFilter {
+  import play.api.libs.Files._
   import play.api.libs.iteratee._
   import CSRF._
+  import play.api.libs.concurrent.execution.defaultContext
+  import BodyParsers.parse._
+
+  private def checkBody[T](parser: BodyParser[T], extractor: (T => Map[String, Seq[String]]))(request: RequestHeader, token: Token,  next: EssentialAction) = {
+    (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
+        val eventuallyEither = Enumerator(b).run(parser(request))
+        Iteratee.flatten(
+          eventuallyEither.map{
+            _.fold(_ => checkRequest(request), body => checkRequest(request, Some(extractor(body))))
+              .fold(
+                result => Done(result, Input.Empty: Input[Array[Byte]]),
+                r => Iteratee.flatten(Enumerator(b).apply(next(addRequestToken(r, token)))).map(result => addResponseToken(request, result, token))
+              )})
+      }
+  }
+
+  def checkFormUrlEncodedBody = checkBody[Map[String, Seq[String]]](tolerantFormUrlEncoded, identity) _
+  def checkMultipart =  checkBody[MultipartFormData[TemporaryFile]](multipartFormData, _.dataParts) _
+
 
   def apply(next: EssentialAction): EssentialAction = new EssentialAction {
     def apply(request: RequestHeader): Iteratee[Array[Byte],Result] = {
+      import play.api.http.HeaderNames._
 
       play.Logger.trace("[CSRF] original request: " + request)
       play.Logger.trace("[CSRF] original cookies: " + request.cookies)
       play.Logger.trace("[CSRF] original session: " + request.session)
 
       val token = generator()
-      import play.api.libs.concurrent.execution.defaultContext
-      (Traversable.take[Array[Byte]](102400) &>> Iteratee.consume[Array[Byte]]()).flatMap{ b: Array[Byte] =>
-          val eventuallyEither = Enumerator(b).run(BodyParsers.parse.tolerantFormUrlEncoded(request))
-          Iteratee.flatten(
-            eventuallyEither.map{
-              _.fold(_ => checkRequest(request), body => checkRequest(request, Some(body)))
-                .fold(
-                  result => Done(result, Input.Empty: Input[Array[Byte]]),
-                  r => Iteratee.flatten(Enumerator(b).apply(next(addRequestToken(r, token)))).map(result => addResponseToken(request, result, token))
-                )})
-        }
-
+      request.headers.get(CONTENT_TYPE) match {
+        case Some(ct) if ct.trim.startsWith("multipart/form-data") => checkMultipart(request, token, next)
+        case _ => checkFormUrlEncodedBody(request, token, next)
+      }
     }
   }
 }

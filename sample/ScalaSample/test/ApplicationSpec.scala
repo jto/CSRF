@@ -108,20 +108,36 @@ class CSRFSpec extends Specification {
       }
     }
 
-    // val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"), withGlobal = Some(FakeGlobal))
-    //
-    //     "use the provided generator" in running(fakeAppWithFakeGlobal) {
-    //        route(showToken) must beSome.which { r =>
-    //         status(r) must equalTo(OK)
-    //         val contentToken = contentAsString(r)
-    //         val sessionToken = session(r).get(TOKEN_NAME)
-    //
-    //         sessionToken must beSome
-    //         contentToken must not(beEmpty)
-    //
-    //         sessionToken.get must beEqualTo("42")
-    //       }
-    //     }
+
+    "allow POST with correct token in multipart body" in running(fakeApp) {
+      import play.api.mvc.MultipartFormData
+      skipped("TODO: encode data as multipart")
+      route(showToken).flatMap {
+        session(_).get(TOKEN_NAME)
+      }.flatMap { token =>
+        val data = Map(TOKEN_NAME -> Seq(token))
+        route(FakeRequest(POST, "/test/post")
+          .withSession(TOKEN_NAME -> token).withHeaders(CONTENT_TYPE -> "multipart/form-data"), data)
+      } must beSome.which { r =>
+        status(r) must equalTo(OK)
+        session(r).get(TOKEN_NAME) must beNone
+      }
+    }
+
+    val fakeAppWithFakeGlobal = FakeApplication(path = new java.io.File("sample/ScalaSample"), withGlobal = Some(FakeGlobal))
+
+    "use the provided generator" in running(fakeAppWithFakeGlobal) {
+      route(showToken) must beSome.which { r =>
+        status(r) must equalTo(OK)
+        val contentToken = contentAsString(r)
+        val sessionToken = session(r).get(TOKEN_NAME)
+
+        sessionToken must beSome
+        contentToken must not(beEmpty)
+
+        sessionToken.get must beEqualTo("42")
+      }
+    }
 
   }
 
