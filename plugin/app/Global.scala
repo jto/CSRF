@@ -39,6 +39,7 @@ object CSRF {
     def POST_LOOKUP: Boolean = c.getBoolean("csrf.tokenInBody").getOrElse(true)
     def CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
     def UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
+    def IGNORED_URLS = c.getStringList("csrf.ignoreIfContains").map(_.asScala).getOrElse(Nil)
   }
 
   import Conf._
@@ -65,13 +66,20 @@ object CSRF {
         request.queryString.get(TOKEN_NAME)
     ).flatMap(_.headOption)
 
-    request.method match {
-      case UNSAFE_METHOD() => {
-        (for{ token <- maybeToken;
-          cookieToken <- COOKIE_NAME.flatMap(request.cookies.get).map(_.value).orElse(request.session.get(TOKEN_NAME))
-        } yield if(checkTokens(token, cookieToken)) Right(request) else Left(INVALID_TOKEN)) getOrElse Left(INVALID_TOKEN)
+    // Don't apply CSRF checks if the URL is marked as 'ignored'.
+    val ignoreCsrfCheck = IGNORED_URLS.exists(ignored => request.path.indexOf(ignored) > 0)
+
+    if(ignoreCsrfCheck) {
+      Right(request)
+    } else {
+      request.method match {
+        case UNSAFE_METHOD() => {
+          (for{ token <- maybeToken;
+            cookieToken <- COOKIE_NAME.flatMap(request.cookies.get).map(_.value).orElse(request.session.get(TOKEN_NAME))
+          } yield if(checkTokens(token, cookieToken)) Right(request) else Left(INVALID_TOKEN)) getOrElse Left(INVALID_TOKEN)
+        }
+        case _ => Right(request)
       }
-      case _ => Right(request)
     }
   }
 
