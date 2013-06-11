@@ -37,6 +37,7 @@ object CSRF {
     def TOKEN_NAME: String = c.getString("csrf.token.name").getOrElse("csrfToken")
     def COOKIE_NAME: Option[String] = c.getString("csrf.cookie.name") // If None, we search for TOKEN_NAME in play session
     def POST_LOOKUP: Boolean = c.getBoolean("csrf.tokenInBody").getOrElse(true)
+    def CSRF_HEADER: String = c.getString("csrf.header.name").getOrElse("X-CSRF-Token")
     def CREATE_IF_NOT_FOUND: Boolean = c.getBoolean("csrf.cookie.createIfNotFound").getOrElse(true)
     def UNSAFE_METHOD = c.getStringList("csrf.unsafe.methods").map(_.asScala).getOrElse(List("PUT","POST","DELETE")).mkString("|").r
     def IGNORED_URLS = c.getStringList("csrf.ignoreIfContains").map(_.asScala).getOrElse(Nil)
@@ -61,7 +62,7 @@ object CSRF {
   def checkRequest(request: RequestHeader, body: Option[Map[String, Seq[String]]] = None): Either[PlainResult, RequestHeader] = {
     val maybeToken: Option[Token] = (
       if(POST_LOOKUP)
-        body.flatMap(_.get(TOKEN_NAME)).orElse(request.queryString.get(TOKEN_NAME))
+        body.flatMap(_.get(TOKEN_NAME)).orElse(request.queryString.get(TOKEN_NAME)).orElse(request.headers.get(CSRF_HEADER).map(Seq(_)))
       else
         request.queryString.get(TOKEN_NAME)
     ).flatMap(_.headOption)
