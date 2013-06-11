@@ -108,6 +108,29 @@ class CSRFSpec extends Specification {
       }
     }
 
+    "allow POST with correct token in header" in running(fakeApp) {
+      route(showToken).flatMap {
+        session(_).get(TOKEN_NAME)
+      }.flatMap { token =>
+        route(FakeRequest(POST, "/test/post")
+          .withSession(TOKEN_NAME -> token).withHeaders(CSRF_HEADER -> token), Map(TOKEN_NAME -> Seq()))
+      } must beSome.which { r =>
+        status(r) must equalTo(OK)
+        session(r).get(TOKEN_NAME) must beNone
+      }
+    }
+
+    "reject POST with invalid token in header" in running(fakeApp) {
+      route(showToken).flatMap {
+        session(_).get(TOKEN_NAME)
+      }.flatMap { token =>
+        route(FakeRequest(POST, "/test/post")
+          .withSession(TOKEN_NAME -> token).withHeaders(CSRF_HEADER -> "evil"), Map(TOKEN_NAME -> Seq()))
+      } must beSome.which { r =>
+        status(r) must equalTo(BAD_REQUEST)
+        session(r).get(TOKEN_NAME) must beNone
+      }
+    }
 
     "allow POST with correct token in multipart body" in running(fakeApp) {
       import play.api.mvc.MultipartFormData
